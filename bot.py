@@ -41,17 +41,20 @@ async def btc_price_sudden_change_warning(update=None, context: ContextTypes.DEF
     global last_price, last_message_time
     try:
         async with websockets.connect("wss://ws.coincap.io/prices?assets=bitcoin") as ws:
+            print("WebSocket connection established successfully")
             async for message in ws:
                 data = json.loads(message)
                 new_price = float(data['bitcoin'])
                 if last_price:
                     change_percent = ((new_price - last_price) / last_price) * 100
-                    print(f'Change percent: {change_percent:.4f}%')
+                    # print(f'Change percent: {change_percent:.4f}%')
                     if abs(change_percent) >= 0.1:  # 0.1% change
                         await send_price_warning(change_percent, last_price, new_price, context)
                         last_message_time = time.time()
 
                 last_price = new_price
+    except KeyboardInterrupt:
+        print("WebSocket connection interrupted by user")
     except Exception as e:
         logging.error(f'Error in btc_price_sudden_change_warning: {e}')
         await asyncio.sleep(10)  # Add a delay before reconnecting or handle the error gracefully
@@ -92,16 +95,21 @@ async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=update.effective_chat.id, text="Sorry, I didn't understand that command.")
 
 if __name__ == '__main__':
-    app = ApplicationBuilder().token(os.getenv("TELEGRAM_TOKEN")).build()
+    try:
+        app = ApplicationBuilder().token(os.getenv("TELEGRAM_TOKEN")).build()
 
-    app.add_handler(CommandHandler("hello", hello))
-    app.add_handler(CommandHandler("btc_price", btc_price))
-    job_queue = app.job_queue
-    job_queue.run_repeating(btc_notice_buy_sell_zone, interval=3600, first=0) # 1 hour
+        app.add_handler(CommandHandler("hello", hello))
+        app.add_handler(CommandHandler("btc_price", btc_price))
+        job_queue = app.job_queue
+        job_queue.run_repeating(btc_notice_buy_sell_zone, interval=3600, first=0) # 1 hour
 
-    unknown_handler = MessageHandler(filters.COMMAND, unknown)
-    app.add_handler(unknown_handler)
+        unknown_handler = MessageHandler(filters.COMMAND, unknown)
+        app.add_handler(unknown_handler)
 
-    loop = asyncio.get_event_loop()
-    loop.create_task(btc_price_sudden_change_warning())
-    loop.run_until_complete(app.run_polling())
+        loop = asyncio.get_event_loop()
+        loop.create_task(btc_price_sudden_change_warning())
+        loop.run_until_complete(app.run_polling())
+    except KeyboardInterrupt:
+        print("Program interrupted by user")
+    except Exception as e:
+        logging.error(f'Error in main: {e}')
