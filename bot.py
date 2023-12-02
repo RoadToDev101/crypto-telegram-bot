@@ -22,7 +22,7 @@ async def btc_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             response = await client.get('https://api.coinlore.net/api/ticker/?id=90')
         data = response.json()
         price = data[0]['price_usd']
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=f'BTC price is now {price}')
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=f'BTC price is now ${price}')
     except Exception as e:
         logging.error(f'Error in btc_price: {e}')
         await context.bot.send_message(chat_id=update.effective_chat.id, text=f'Error: {e}')
@@ -42,7 +42,8 @@ async def btc_price_sudden_change_warning(update=None, context: ContextTypes.DEF
     try:
         async with websockets.connect("wss://ws.coincap.io/prices?assets=bitcoin") as ws:
             print("WebSocket connection established successfully")
-            async for message in ws:
+            while True:
+                message = await ws.recv()
                 data = json.loads(message)
                 new_price = float(data['bitcoin'])
                 if last_price:
@@ -53,11 +54,13 @@ async def btc_price_sudden_change_warning(update=None, context: ContextTypes.DEF
                         last_message_time = time.time()
 
                 last_price = new_price
+    except asyncio.CancelledError:
+        print("Task was cancelled")
     except KeyboardInterrupt:
         print("WebSocket connection interrupted by user")
     except Exception as e:
         logging.error(f'Error in btc_price_sudden_change_warning: {e}')
-        await asyncio.sleep(10)  # Add a delay before reconnecting or handle the error gracefully
+        await asyncio.sleep(10)
 
 async def get_rsi(exchange, symbol, interval, period=14):
     url = f'https://api.taapi.io/rsi?secret={os.getenv("TAAPI_KEY")}&exchange={exchange}&symbol={symbol}&interval={interval}'
